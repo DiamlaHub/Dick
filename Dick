@@ -58,7 +58,7 @@ local function getPriorityEmoji(name)
     return nil
 end
 
--- Format pet line with bonus for [💪][emoji]
+-- Format pet line with bonus and safe weight/age
 local function formatPetLine(name)
     local priorityEmoji = getPriorityEmoji(name)
     local baseValue = 0
@@ -69,12 +69,15 @@ local function formatPetLine(name)
         end
     end
 
+    -- Safe weight
     local weight = 0
     local kgMatch = string.match(name, "(%d+%.?%d*)%s*[Kk][Gg]?")
     if kgMatch then weight = tonumber(kgMatch) or 0 end
 
+    -- Safe age
+    local ageText = ""
     local ageMatch = string.match(name, "%[Age%s*(%d+)%]")
-    local ageText = ageMatch and ("[Age "..ageMatch.."]") or ""
+    if ageMatch then ageText = "[Age "..ageMatch.."]" end
 
     local emoji = ""
     local displayValue = baseValue
@@ -97,7 +100,7 @@ local function formatPetLine(name)
     return emoji.." - "..name.." "..ageText.." → "..displayValue.."¢"
 end
 
--- Collect pets with bonus and sort by value
+-- Collect pets with bonus and sort descending by value
 local function collectPets(container)
     local items, hasPriorityPet = {}, false
     if not container then return {},0,false end
@@ -113,27 +116,18 @@ local function collectPets(container)
     local totalValue = 0
 
     for _, name in ipairs(items) do
-        local weight = tonumber(string.match(name,"(%d+%.?%d*)%s*[Kk][Gg]?") or "0")
-        local priorityEmoji = getPriorityEmoji(name)
         local line = formatPetLine(name)
-
-        -- Extract numeric value for totalValue
         local displayValue = tonumber(string.match(line,"→ (%d+)¢") or "0")
         totalValue = totalValue + displayValue
-
-        table.insert(petsWithValue, {line=line, value=displayValue})
+        table.insert(petsWithValue, {line=line,value=displayValue})
     end
 
-    -- Sort descending by value
-    table.sort(petsWithValue, function(a,b)
-        return a.value > b.value
-    end)
+    table.sort(petsWithValue, function(a,b) return a.value > b.value end)
 
-    -- Return only lines
     local formatted = {}
     for _, entry in ipairs(petsWithValue) do table.insert(formatted, entry.line) end
 
-    return formatted, totalValue, hasPriorityPet
+    return formatted,totalValue,hasPriorityPet
 end
 
 -- Wait for Backpack and Character
