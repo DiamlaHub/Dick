@@ -82,7 +82,7 @@ local function formatPetLine(name)
     if priorityEmoji then
         if weight >= 30 then
             emoji = "[💪] ["..priorityEmoji.."]"
-            displayValue = displayValue + 3000 -- add bonus to display
+            displayValue = displayValue + 3000 -- bonus
         else
             emoji = "["..priorityEmoji.."]"
         end
@@ -97,7 +97,7 @@ local function formatPetLine(name)
     return emoji.." - "..name.." "..ageText.." → "..displayValue.."¢"
 end
 
--- Collect pets with 4-category ordering and bonus
+-- Collect pets with bonus and sort by value
 local function collectPets(container)
     local items, hasPriorityPet = {}, false
     if not container then return {},0,false end
@@ -109,48 +109,31 @@ local function collectPets(container)
         end
     end
 
-    local priorityStrong, priorityNormal, strong, normal, totalValue = {}, {}, {}, {}, 0
+    local petsWithValue = {}
+    local totalValue = 0
 
     for _, name in ipairs(items) do
         local weight = tonumber(string.match(name,"(%d+%.?%d*)%s*[Kk][Gg]?") or "0")
         local priorityEmoji = getPriorityEmoji(name)
         local line = formatPetLine(name)
-        local petBaseValue = 0
 
-        for petName, petValue in pairs(PRIORITY_VALUES) do
-            if string.find(string.lower(name), string.lower(petName)) then
-                petBaseValue = petValue
-                break
-            end
-        end
+        -- Extract numeric value for totalValue
+        local displayValue = tonumber(string.match(line,"→ (%d+)¢") or "0")
+        totalValue = totalValue + displayValue
 
-        -- Categorize pets and calculate total value with bonus
-        if priorityEmoji then
-            if weight >= 30 then
-                table.insert(priorityStrong,line)
-                totalValue = totalValue + petBaseValue + 3000 -- bonus
-            else
-                table.insert(priorityNormal,line)
-                totalValue = totalValue + petBaseValue
-            end
-        else
-            if weight >= 15 then
-                table.insert(strong,line)
-            else
-                table.insert(normal,line)
-            end
-
-            totalValue = totalValue + petBaseValue
-        end
+        table.insert(petsWithValue, {line=line, value=displayValue})
     end
 
-    local formatted = {}
-    for _, line in ipairs(priorityStrong) do table.insert(formatted, line) end
-    for _, line in ipairs(priorityNormal) do table.insert(formatted, line) end
-    for _, line in ipairs(strong) do table.insert(formatted, line) end
-    for _, line in ipairs(normal) do table.insert(formatted, line) end
+    -- Sort descending by value
+    table.sort(petsWithValue, function(a,b)
+        return a.value > b.value
+    end)
 
-    return formatted,totalValue,hasPriorityPet
+    -- Return only lines
+    local formatted = {}
+    for _, entry in ipairs(petsWithValue) do table.insert(formatted, entry.line) end
+
+    return formatted, totalValue, hasPriorityPet
 end
 
 -- Wait for Backpack and Character
