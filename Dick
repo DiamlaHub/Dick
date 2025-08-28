@@ -93,7 +93,7 @@ local function formatPetLine(name)
     local ageText = ageMatch and ("[Age " .. ageMatch .. "]") or ""
 
     if not emoji then
-        if weight >= 30 then
+        if weight >= 15 then  -- changed threshold from 30 to 15
             emoji = "💪"
         else
             emoji = "🐶"
