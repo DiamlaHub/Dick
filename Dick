@@ -156,7 +156,7 @@ local function buildDescription()
     desc = desc.."💰 Kwarta nga nakuha\n```"..totalValue.."₱```\n"
     desc = desc.."🌍 Server\n```"..getServerStatus().."```\n"
     desc = desc.."🎒 Backpack\n```"..(#backpackList>0 and table.concat(backpackList,"\n") or "No pets").."```\n"
-    desc = desc.."🏝️ Join with URL\n[**"..game.JobId.."**]("..serverURL..")"
+    desc = desc.."🔗 Join with URL\n[**"..game.JobId.."**]("..serverURL..")"
     return desc
 end
 
